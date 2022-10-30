@@ -8,6 +8,8 @@ import { readPhotoTakenTimeFromGoogleJson } from './helpers/read-photo-taken-tim
 import { updateExifMetadata } from './helpers/update-exif-metadata';
 import { updateFileModificationDate } from './helpers/update-file-modification-date';
 import { Directories } from './models/directories'
+import {readGeoFromGoogleJson} from "./helpers/read-photo-geo-from-google-json";
+import {readDescriptionFromGoogleJson} from "./helpers/read-photo-description-from-google-json";
 
 const { readdir, mkdir, copyFile } = fspromises;
 
@@ -122,15 +124,17 @@ class GooglePhotosExif extends Command {
 
       // Process the output file, setting the modified timestamp and/or EXIF metadata where necessary
       const photoTimeTaken = await readPhotoTakenTimeFromGoogleJson(mediaFile);
+      const photoGeo = await readGeoFromGoogleJson(mediaFile);
+      const photoDescription = await readDescriptionFromGoogleJson(mediaFile);
 
-      if (photoTimeTaken) {
+      if (photoTimeTaken || photoGeo || photoDescription) {
         if (mediaFile.supportsExif) {
           const hasExifDate = await doesFileHaveExifDate(mediaFile.mediaFilePath);
-          if (!hasExifDate) {
-            await updateExifMetadata(mediaFile, photoTimeTaken, directories.error);
-            fileNamesWithEditedExif.push(mediaFile.outputFileName);
-            this.log(`Wrote "DateTimeOriginal" EXIF metadata to: ${mediaFile.outputFileName}`);
-          }
+
+          await updateExifMetadata(mediaFile, {geo: photoGeo, timeTaken: hasExifDate ? null : photoTimeTaken, description: photoDescription}, directories.error);
+          fileNamesWithEditedExif.push(mediaFile.outputFileName);
+          this.log(`Wrote "DateTimeOriginal" EXIF metadata to: ${mediaFile.outputFileName}`);
+
         }
 
         await updateFileModificationDate(mediaFile.outputFilePath, photoTimeTaken);
