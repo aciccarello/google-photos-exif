@@ -4,13 +4,14 @@ import { existsSync, promises as fspromises } from 'fs';
 import { CONFIG } from './config';
 import { FileInfo } from './models/file-info';
 import { Directories } from './models/directories'
-import { basename, extname, resolve } from 'path';
 import { doesFileHaveExifDate } from './helpers/does-file-have-exif-date';
 import { getAllFilesExceptJson } from './helpers/get-all-files-except-json';
 import { readPhotoTakenTimeFromGoogleJson } from './helpers/read-photo-taken-time-from-google-json';
 import { updateExifMetadata } from './helpers/update-exif-metadata';
 import { updateFileModificationDate } from './helpers/update-file-modification-date';
 import { copyWithJsonSidecar } from './helpers/copy-with-json-sidecar';
+import {readGeoFromGoogleJson} from "./helpers/read-photo-geo-from-google-json";
+import {readDescriptionFromGoogleJson} from "./helpers/read-photo-description-from-google-json";
 
 const { readdir, mkdir, copyFile } = fspromises;
 
@@ -166,15 +167,17 @@ class GooglePhotosExif extends Command {
 
       // Process the output file, setting the modified timestamp and/or EXIF metadata where necessary
       const photoTimeTaken = await readPhotoTakenTimeFromGoogleJson(mediaFile);
+      const photoGeo = await readGeoFromGoogleJson(mediaFile);
+      const photoDescription = await readDescriptionFromGoogleJson(mediaFile);
 
-      if (photoTimeTaken) {
+      if (photoTimeTaken || photoGeo || photoDescription) {
         if (mediaFile.supportsExif) {
-          const hasExifDate = await doesFileHaveExifDate(mediaFile.filePath);
-          if (!hasExifDate) {
-            await updateExifMetadata(mediaFile, photoTimeTaken, directories.error);
-            fileNamesWithEditedExif.push(<string>mediaFile.outputFileName);
-            this.log(`Wrote "DateTimeOriginal" EXIF metadata to: ${mediaFile.outputFileName}`);
-          }
+          const hasExifDate = await doesFileHaveExifDate(mediaFile.mediaFilePath);
+
+          await updateExifMetadata(mediaFile, {geo: photoGeo, timeTaken: hasExifDate ? null : photoTimeTaken, description: photoDescription}, directories.error);
+          fileNamesWithEditedExif.push(mediaFile.outputFileName);
+          this.log(`Wrote "DateTimeOriginal" EXIF metadata to: ${mediaFile.outputFileName}`);
+
         }
 
         await updateFileModificationDate(<string>mediaFile.outputFilePath, photoTimeTaken);
