@@ -2,7 +2,7 @@ export interface FileInfo {
   filePath: string;
   fileName: string;
   fileExtension: string;
-  fileExtensionLowerCased: string;  
+  fileExtensionLowerCased: string;
   isMediaFile: boolean;
   supportsExif: boolean;
 
@@ -13,4 +13,10 @@ export interface FileInfo {
 
   outputFileName: string|null;
   outputFilePath: string|null;
+}
+
+export interface MediaFileInfo extends FileInfo {
+  isMediaFile: true;
+  outputFileName: string;
+  outputFilePath: string;
 }

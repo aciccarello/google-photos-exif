@@ -2,7 +2,7 @@ import { Command, flags } from '@oclif/command';
 import * as Parser from '@oclif/parser';
 import { existsSync, promises as fspromises } from 'fs';
 import { CONFIG } from './config';
-import { FileInfo } from './models/file-info';
+import { MediaFileInfo } from './models/file-info';
 import { Directories } from './models/directories'
 import { doesFileHaveExifDate } from './helpers/does-file-have-exif-date';
 import { getAllFilesExceptJson } from './helpers/get-all-files-except-json';
@@ -97,44 +97,44 @@ class GooglePhotosExif extends Command {
     }
   }
 
-  
-  
+
+
   private async processMediaFiles(directories: Directories): Promise<void> {
     const supportedMediaFileExtensions = CONFIG.supportedMediaFileTypes.map(fileType => fileType.extension.toLowerCase());
 
     // Populate the FileInfo structure with all files in the source directory, except JSONs)
     this.log(`--- Getting all files in directory ${directories.input} ---`);
     const allFiles = await getAllFilesExceptJson(directories.input, directories.output);
-    
+
     // Print the number of found files by extension
     const allExtensionTypes = new Set();
     for (const fi of allFiles) { allExtensionTypes.add(fi.fileExtensionLowerCased);  }
     const allExtensionTypesSorted = [...allExtensionTypes].sort();
     let totalFilesCount = 0;
-    for (const ext of allExtensionTypesSorted) { 
+    for (const ext of allExtensionTypesSorted) {
       const count = allFiles.filter( fi => fi.fileExtensionLowerCased === ext ).length;
       totalFilesCount += count;
       const warn = ext != ".json" ? !supportedMediaFileExtensions.includes(<string>ext) ? "*** unsupported extension" : "" : "";
-      this.log (`    ${ext}  ${count} files  ${warn}`); 
+      this.log (`    ${ext}  ${count} files  ${warn}`);
     }
     this.log (`    Total of ${totalFilesCount} non-JSON files found.`);
-      
+
     // Filter down to the media files only, and copy any files with unsupported extensions or missing JSON to the errors directory so that the user can manually inspect them
     this.log(`--- Finding supported media files (${supportedMediaFileExtensions.join(', ')}) ---`)
-    const mediaFiles: FileInfo[] = [];
+    const mediaFiles: MediaFileInfo[] = [];
     let totalMissingJson = 0;
     for (const fi of allFiles)
     {
-      if (fi.isMediaFile) mediaFiles.push(fi);
-      
+      if (fi.isMediaFile && fi.outputFileName)
+        mediaFiles.push(fi as MediaFileInfo);
       else {
         this.log (`    copying ${fi.fileName} to the errors directory due to unsupported extension.`);
-        copyWithJsonSidecar (fi, directories.error);   
+        copyWithJsonSidecar (fi, directories.error);
       }
       if (!fi.jsonFileExists) {
         totalMissingJson++;
         this.log (`    copying ${fi.fileName} to the errors directory due to missing JSON sidecar.`);
-        copyWithJsonSidecar (fi, directories.error);   
+        copyWithJsonSidecar (fi, directories.error);
       }
       else if (!fi.jsonFileHasSize) {
         totalMissingJson++;
@@ -143,7 +143,7 @@ class GooglePhotosExif extends Command {
       }
     }
     this.log (`--- ${totalFilesCount} total files, ${mediaFiles.length} supported media files, of which ${totalMissingJson} media files' JSON sidecar could not be located. ---`);
-  
+
     // Show the media file counts
     const mediaFileCountsByExtension = new Map<string, number>();
     supportedMediaFileExtensions.forEach(supportedExtension => {
@@ -172,7 +172,7 @@ class GooglePhotosExif extends Command {
 
       if (photoTimeTaken || photoGeo || photoDescription) {
         if (mediaFile.supportsExif) {
-          const hasExifDate = await doesFileHaveExifDate(mediaFile.mediaFilePath);
+          const hasExifDate = await doesFileHaveExifDate(mediaFile.filePath);
 
           await updateExifMetadata(mediaFile, {geo: photoGeo, timeTaken: hasExifDate ? null : photoTimeTaken, description: photoDescription}, directories.error);
           fileNamesWithEditedExif.push(mediaFile.outputFileName);

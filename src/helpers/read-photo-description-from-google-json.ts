@@ -1,10 +1,10 @@
 import { GoogleMetadata } from '../models/google-metadata';
 import { promises as fspromises } from "fs"
-import { MediaFileInfo } from '../models/media-file-info'
+import { FileInfo } from '../models/file-info'
 
 const { readFile } = fspromises;
 
-export async function readDescriptionFromGoogleJson(mediaFile: MediaFileInfo): Promise<GoogleMetadata['description']|null> {
+export async function readDescriptionFromGoogleJson(mediaFile: FileInfo): Promise<GoogleMetadata['description']|null> {
   if (!mediaFile.jsonFilePath || !mediaFile.jsonFileExists) {
     return null;
   }
